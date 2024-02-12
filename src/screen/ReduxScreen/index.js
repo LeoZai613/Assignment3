@@ -7,7 +7,7 @@ import {
   FlatList,
   TouchableOpacity,
 } from 'react-native';
-import React, {useState} from 'react';
+import React, {useState, useEffect} from 'react';
 import {useDispatch, useSelector} from 'react-redux';
 import {
   increment,
@@ -15,6 +15,9 @@ import {
   incrementByAmount,
 } from '../../features/counter/counterSlice';
 import {addToCart} from '../../features/cart/cartSlice';
+import {logout} from '../../features/user/userSlice';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import DatePicker from '@react-native-community/datetimepicker';
 
 const itemList = [
   {id: 1, name: 'Macbook', details: '', price: 2500},
@@ -27,87 +30,107 @@ const itemList = [
 
 const ReduxScreen = () => {
   const [customVal, setCustomVal] = useState(0);
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [dueDate, setDueDate] = useState(new Date());
+  const [assignments, setAssignments] = useState([]);
   const dispatch = useDispatch();
   const counterValue = useSelector(state => state.counter.value);
 
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const handleSubmit = async () => {
+    const newItem = {title, description, dueDate: dueDate.toISOString()};
+    const newAssignments = [...assignments, newItem];
+    await saveData(newAssignments);
+    setAssignments(newAssignments);
+    setTitle('');
+    setDescription('');
+    setDueDate(new Date());
+  };
+
+  const saveData = async data => {
+    try {
+      const jsonValue = JSON.stringify(data);
+      await AsyncStorage.setItem('assignments', jsonValue);
+    } catch (e) {
+      console.error('Error saving data', e);
+    }
+  };
+
+  const loadData = async () => {
+    try {
+      const jsonValue = await AsyncStorage.getItem('assignments');
+      setAssignments(jsonValue != null ? JSON.parse(jsonValue) : []);
+    } catch (e) {
+      console.error('Error loading data', e);
+    }
+  };
+
   return (
     <View style={{flex: 1}}>
+      <View style={styles.assignmentForm}>
+        <TextInput
+          style={styles.input}
+          placeholder="Title"
+          value={title}
+          onChangeText={setTitle}
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Description"
+          value={description}
+          onChangeText={setDescription}
+        />
+        <DatePicker
+          style={styles.datePicker}
+          value={dueDate}
+          mode="date"
+          display="default"
+          onChange={(event, date) => date && setDueDate(date)}
+        />
+        <Button title="Submit" onPress={handleSubmit} />
+      </View>
+
       <FlatList
         style={{flex: 1}}
-        data={itemList}
-        renderItem={({item, index}) => {
-          return (
-            <View
-              style={{
-                backgroundColor: 'pink',
-                margin: 5,
-                justifyContent: 'center',
-                paddingHorizontal: 10,
-              }}>
-              <View
-                style={{
-                  marginHorizontal: 10,
-                  backgroundColor: 'red',
-                  flexDirection: 'row',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                }}>
-                <Text>{item.name}</Text>
-                <Text>{item.details}</Text>
-                <Text>{item.price}</Text>
-              </View>
-              <View style={{justifyContent: 'center', alignItems: 'center'}}>
-                <TouchableOpacity
-                  onPress={() => {
-                    dispatch(addToCart(item));
-                  }}
-                  style={{
-                    height: 50,
-                    width: 100,
-                    backgroundColor: 'yellow',
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                  }}>
-                  <Text>Add to cart</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          );
-        }}
-      />
-      <Button
-        title={'Increment'}
-        onPress={() => {
-          dispatch(increment());
-        }}
-      />
-      <Button
-        title={'Decrement'}
-        onPress={() => {
-          dispatch(decrement());
-        }}
+        data={assignments}
+        renderItem={({item}) => (
+          <View style={styles.assignmentItem}>
+            <Text>{item.title}</Text>
+            <Text>{item.description}</Text>
+            <Text>{new Date(item.dueDate).toLocaleDateString()}</Text>
+          </View>
+        )}
+        keyExtractor={(item, index) => index.toString()}
       />
 
-      <TextInput
-        value={customVal}
-        onChangeText={ct => {
-          setCustomVal(ct);
-        }}
-        placeholder="Increment amount"
-      />
-
-      <Button
-        title={'Increment by amount'}
-        onPress={() => {
-          dispatch(incrementByAmount(parseInt(customVal)));
-        }}
-      />
-
-      <Text>{counterValue}</Text>
+      {/* Rest of the existing ReduxScreen content */}
     </View>
   );
 };
 
-export default ReduxScreen;
+const styles = StyleSheet.create({
+  assignmentForm: {
+    marginBottom: 20,
+  },
+  input: {
+    height: 40,
+    borderColor: 'gray',
+    borderWidth: 1,
+    marginBottom: 10,
+    paddingHorizontal: 10,
+  },
+  datePicker: {
+    marginBottom: 20,
+  },
+  assignmentItem: {
+    backgroundColor: 'lightgray',
+    padding: 10,
+    marginBottom: 10,
+  },
+});
 
-const styles = StyleSheet.create({});
+export default ReduxScreen;
